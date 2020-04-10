@@ -1,4 +1,5 @@
-import { terminal as term } from 'terminal-kit';
+import { execSync } from 'child_process';
+import colors from 'colors';
 import fs from 'fs';
 
 function sanitizeUrls(urls: string[]) {
@@ -12,7 +13,7 @@ function sanitizeUrls(urls: string[]) {
 
         if (!rex.test(url)) {
             if (url !== '')
-                term.yellow("Invalid URL at line "+(i+1)+", skip..\n");
+                console.warn(colors.yellow("Invalid URL at line "+(i+1)+", skip..\n"));
 
             continue;
         }
@@ -41,4 +42,30 @@ export function getVideoUrls(videoUrls: any) {
 
 export function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function checkRequirements() {
+    try {
+        const ytdlVer = execSync('youtube-dl --version');
+        console.info(colors.green(`Using youtube-dl version ${ytdlVer}`));
+
+    } catch (e) {
+        console.error(colors.red(
+            'youtube-dl is missing.\nDestreamer requires a fairly recent release of youtube-dl to work properly.\n' +
+            'Please install it with your preferred package manager or copy youtube-dl binary in destreamer root directory.\n'
+        ));
+        process.exit(22);
+    }
+
+    try {
+        const ffmpegVer = execSync('ffmpeg -version').toString().split('\n')[0];
+        console.info(colors.green(`Using ${ffmpegVer}\n`));
+
+    } catch (e) {
+        console.error(colors.red(
+            'FFmpeg is missing.\nDestreamer requires a fairly recent release of FFmpeg to work properly.\n' +
+            'Please install it with your preferred package manager or copy FFmpeg binary in destreamer root directory.\n'
+        ));
+        process.exit(23);
+    }
 }

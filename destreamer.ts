@@ -1,8 +1,8 @@
-import { sleep, getVideoUrls } from './utils';
+import { sleep, getVideoUrls, checkRequirements } from './utils';
 import { execSync } from 'child_process';
 import isElevated from 'is-elevated';
 import puppeteer from 'puppeteer';
-import { terminal as term } from 'terminal-kit';
+import colors from 'colors';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -11,6 +11,8 @@ import sanitize from 'sanitize-filename';
 import axios from 'axios';
 
 /**
+ * exitCode 22 = youtube-dl not found in $PATH
+ * exitCode 23 = ffmpeg not found in $PATH
  * exitCode 25 = cannot split videoID from videUrl
  * exitCode 27 = no hlsUrl in the API response
  * exitCode 29 = invalid response from API
@@ -18,75 +20,55 @@ import axios from 'axios';
  */
 
 const argv = yargs.options({
-    username: { alias: "u", type: 'string', demandOption: false },
-    outputDirectory: { type: 'string', alias: 'o', default: 'videos' },
+    username: {
+        alias: 'u',
+        type: 'string',
+        demandOption: false
+    },
+    outputDirectory: {
+        alias: 'o',
+        type: 'string',
+        default: 'videos',
+        demandOption: false
+    },
     videoUrls: {
-        alias: "V",
-        describe: `List of video urls or path to txt file containing the urls`,
+        alias: 'V',
+        describe: 'List of video urls or path to txt file containing the urls',
         type: 'array',
         demandOption: true
     },
-    format: {
-        alias:"f",
-        describe: `Expose youtube-dl --format option, for details see\n
-        https://github.com/ytdl-org/youtube-dl/blob/master/README.md#format-selection`,
-        type:'string',
-        demandOption: false
-    },
     simulate: {
-        alias: "s",
+        alias: 's',
         describe: `If this is set to true no video will be downloaded and the script
         will log the video info (default: false)`,
-        type: "boolean",
+        type: 'boolean',
         default: false,
         demandOption: false
     },
     verbose: {
-        alias: "v",
+        alias: 'v',
         describe: `Print additional information to the console
         (use this before opening an issue on GitHub)`,
-        type: "boolean",
+        type: 'boolean',
         default: false,
         demandOption: false
     }
 }).argv;
 
-if (argv.simulate){
-    console.info('Video URLs: %s', argv.videoUrls);
-    console.info('Username: %s', argv.username);
-    term.blue("There will be no video downloaded, it's only a simulation\n");
-} else {
-    console.info('Video URLs: %s', argv.videoUrls);
-    console.info('Username: %s', argv.username);
-    console.info('Output Directory: %s', argv.outputDirectory);
-    console.info('Video/Audio Quality: %s', argv.format);
-}
-
-
-function sanityChecks() {
-    try {
-        const ytdlVer = execSync('youtube-dl --version');
-        term.green(`Using youtube-dl version ${ytdlVer}`);
-    }
-    catch (e) {
-        console.error('You need youtube-dl in $PATH for this to work. Make sure it is a relatively recent one, baked after 2019.');
-        process.exit(22);
-    }
-
-    try {
-        const ffmpegVer = execSync('ffmpeg -version')
-            .toString().split('\n')[0];
-        term.green(`Using ${ffmpegVer}\n`);
-    }
-    catch (e) {
-        console.error('FFmpeg is missing. You need a fairly recent release of FFmpeg in $PATH.');
-    }
-
+function init() {
+    // create output directory
     if (!fs.existsSync(argv.outputDirectory)){
         console.log('Creating output directory: ' +
             process.cwd() + path.sep + argv.outputDirectory);
         fs.mkdirSync(argv.outputDirectory);
     }
+
+    console.info('Video URLs: %s', argv.videoUrls);
+    console.info('Username: %s', argv.username);
+    console.info('Output Directory: %s', argv.outputDirectory);
+
+    if (argv.simulate)
+        console.info(colors.blue("There will be no video downloaded, it's only a simulation\n"));
 }
 
 async function rentVideoForLater(videoUrls: string[], outputDirectory: string, username?: string) {
@@ -105,7 +87,7 @@ async function rentVideoForLater(videoUrls: string[], outputDirectory: string, u
     console.log('Navigating to STS login page...');
 
     // This breaks on slow connections, needs more reliable logic
-    await page.goto(videoUrls[0], { waitUntil: "networkidle2" });
+    await page.goto(videoUrls[0], { waitUntil: 'networkidle2' });
     await page.waitForSelector('input[type="email"]');
 
     if (username) {
@@ -130,10 +112,10 @@ async function rentVideoForLater(videoUrls: string[], outputDirectory: string, u
         // try this instead of hardcoding sleep
         // https://github.com/GoogleChrome/puppeteer/issues/3649
 
-        console.log("Page loaded")
+        console.log('Page loaded');
 
         await sleep(4000);
-        console.log("Calling Microsoft Stream API...");
+        console.log('Calling Microsoft Stream API...');
 
         let sessionInfo: any;
         let session = await page.evaluate(
@@ -154,11 +136,11 @@ async function rentVideoForLater(videoUrls: string[], outputDirectory: string, u
         console.log(`ApiGatewayUri: ${session.ApiGatewayUri}`);
         console.log(`ApiGatewayVersion: ${session.ApiGatewayVersion}`);
 
-        console.log("Fetching title and HLS URL...");
+        console.log('Fetching title and HLS URL...');
         var [title, date, hlsUrl] = await getVideoInfo(videoID, session);
         const sanitized = sanitize(title);
 
-        title = (sanitized == "") ?
+        title = (sanitized == '') ?
             `Video${videoUrls.indexOf(videoUrl)}` :
             sanitized;
 
@@ -168,24 +150,22 @@ async function rentVideoForLater(videoUrls: string[], outputDirectory: string, u
         // Add random index to prevent unwanted file overwrite!
         let k = 0;
         let ntitle = title;
-        while (fs.existsSync(outputDirectory+"/"+ntitle+".mp4"))
+        while (fs.existsSync(outputDirectory+'/'+ntitle+'.mp4'))
             ntitle = title+' - '+(++k).toString();
 
         title = ntitle;
 
-        term.blue("Video title is: ");
+        console.info(colors.blue('Video title is: '));
         console.log(`${title} \n`);
 
         console.log('Spawning youtube-dl with cookie and HLS URL...');
 
-        const format = argv.format ? `-f "${argv.format}"` : "";
-
-        var youtubedlCmd = 'youtube-dl --no-call-home --no-warnings ' + format +
+        var youtubedlCmd = 'youtube-dl --no-call-home --no-warnings ' +
                 ` --output "${outputDirectory}/${title}.mp4" --add-header ` +
                 `"Authorization: Bearer ${session.AccessToken}" "${hlsUrl}"`;
 
         if (argv.simulate) {
-            youtubedlCmd = youtubedlCmd + " -s";
+            youtubedlCmd += ' -s';
         }
 
         if (argv.verbose) {
@@ -215,24 +195,24 @@ async function getVideoInfo(videoID: string, session: any) {
             return response.data;
         })
         .catch(function (error) {
-            term.red('Error when calling Microsoft Stream API: ' +
-                `${error.response.status} ${error.response.reason}`);
+            console.error(colors.red('Error when calling Microsoft Stream API: ' +
+                `${error.response.status} ${error.response.reason}`));
             console.error(error.response.status);
             console.error(error.response.data);
-            console.error("Exiting...");
+            console.error('Exiting...');
             if (argv.verbose) {
-                term.red("[VERBOSE]");
-                console.error(error)
+                console.error(colors.red('[VERBOSE]'));
+                console.error(error);
             }
             process.exit(29);
         });
 
         title = await content.then(data => {
-            return data["name"];
+            return data['name'];
         });
 
         date = await content.then(data => {
-            const dateJs = new Date(data["publishedDate"]);
+            const dateJs = new Date(data['publishedDate']);
             const day = dateJs.getDate().toString().padStart(2, '0');
             const month = (dateJs.getMonth() + 1).toString(10).padStart(2, '0');
 
@@ -245,11 +225,11 @@ async function getVideoInfo(videoID: string, session: any) {
             }
             let playbackUrl = null;
             try {
-                playbackUrl = data["playbackUrls"]
+                playbackUrl = data['playbackUrls']
                     .filter((item: { [x: string]: string; }) =>
-                        item["mimeType"] == "application/vnd.apple.mpegurl")
+                        item['mimeType'] == 'application/vnd.apple.mpegurl')
                     .map((item: { [x: string]: string }) =>
-                        { return item["playbackUrl"]; })[0];
+                        { return item['playbackUrl']; })[0];
             }
             catch (e) {
                 console.error(`Error fetching HLS URL: ${e}.\n playbackUrl is ${playbackUrl}`);
@@ -263,24 +243,32 @@ async function getVideoInfo(videoID: string, session: any) {
 }
 
 // FIXME
-process.on('unhandledRejection', (reason, promise) => {
-    term.red("Unhandled error!\nTimeout or fatal error, please check your downloads and try again if necessary.\n");
-    term.red(reason);
-    throw new Error("Killing process..\n");
+process.on('unhandledRejection', (reason) => {
+    console.error(colors.red('Unhandled error!\nTimeout or fatal error, please check your downloads and try again if necessary.\n'));
+    console.error(colors.red(reason as string));
+    throw new Error('Killing process..\n');
 });
 
 async function main() {
     const isValidUser = !(await isElevated());
+    let videoUrls: string[];
 
     if (!isValidUser) {
         const usrName = os.platform() === 'win32' ? 'Admin':'root';
 
-        term.red('\nERROR: Destreamer does not run as '+usrName+'!\nPlease run destreamer with a non-privileged user.\n');
+        console.error(colors.red('\nERROR: Destreamer does not run as '+usrName+'!\nPlease run destreamer with a non-privileged user.\n'));
         process.exit(-1);
     }
 
-    sanityChecks();
-    rentVideoForLater(getVideoUrls(argv.videoUrls), argv.outputDirectory, argv.username);
+    videoUrls = getVideoUrls(argv.videoUrls);
+    if (videoUrls.length === 0) {
+        console.error(colors.red('\nERROR: No valid URL has been found!\n'));
+        process.exit(-1);
+    }
+
+    checkRequirements();
+    init();
+    rentVideoForLater(videoUrls, argv.outputDirectory, argv.username);
 }
 
 // run
