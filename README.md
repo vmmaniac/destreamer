@@ -1,5 +1,7 @@
 # Destreamer
-
+ 
+# THIS BRANCH IS NOW DEPRECATED. PLEASE PULL FROM MASTER INSTEAD.
+ 
 <a href="https://github.com/snobu/destreamer/actions">
   <img src="https://github.com/snobu/destreamer/workflows/Node%20CI/badge.svg" alt="CI build status" />
 </a>

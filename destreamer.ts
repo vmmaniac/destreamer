@@ -19,6 +19,12 @@ import axios from 'axios';
  * exitCode 88 = error extracting cookies
  */
 
+console.log('-------------------------------------------------');
+console.log('YOU ARE USING A DEPRECATED VERSION OF DESTREAMER.');
+console.log('PLEASE PULL FROM THE MASTER BRANCH FOR LATEST.');
+console.log('https://github.com/snobu/destreamer');
+console.log('-------------------------------------------------')
+
 const argv = yargs.options({
     username: {
         alias: 'u',
