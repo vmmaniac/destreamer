@@ -11,7 +11,7 @@ Default
 https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt		
 Default
 https://hosts-file.net/ad_servers.txt		
-Default
+Default (off)
 https://www.sunshine.it/blacklist.txt		
 
 https://easylist-downloads.adblockplus.org/easylist.txt		
