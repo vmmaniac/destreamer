@@ -112460,7 +112460,6 @@ multi.poolto.be
 multi.qualtrics.com
 multi.thedreadpool.eu
 multi.walemo.com
-multi.xnxx.com
 multi.zet-tech.eu
 multi1-wdc.youbora.com
 multi2-wdc.youbora.com
@@ -190813,7 +190812,6 @@ xnv.easyx.cc
 xnvex.pubnodes.com
 xnwndbef.com
 xnwqhydt.com
-xnxx.com
 xnxx321.com
 xnydasvpdqn.com
 xnyiljkfdwgu.com
